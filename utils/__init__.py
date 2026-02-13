@@ -5,7 +5,7 @@ from google.oauth2.service_account import Credentials
 
 # --- CONFIGURATION ---
 SHEET_NAME = "MAX ENDOCRINOLOGY DATA (Responses)"
-APP_PASSWORD = "EndoMaster2026" 
+APP_PASSWORD = "EndoMaster2026"
 
 # --- 1. PASSWORD FUNCTION ---
 def check_password():
@@ -26,8 +26,7 @@ def check_password():
             st.error("Incorrect Password")
     return False
 
-
-# --- 2. GOOGLE AUTHENTICATION ---
+# --- 2. GOOGLE AUTHENTICATION (WITH FIX) ---
 @st.cache_resource
 def get_gspread_client():
     """Authenticates using the secrets file with PEM fix."""
