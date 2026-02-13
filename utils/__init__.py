@@ -37,7 +37,7 @@ def get_gspread_client():
     # 1. Convert secrets to a dictionary
     creds_dict = dict(st.secrets["gcp_service_account"])
 
-    # 🟢 THE CRITICAL REPAIR LINE
+    # 🟢 FIX FOR: InvalidData(InvalidPadding)
     # This converts literal "\n" text into real line breaks for the PEM reader
     if "private_key" in creds_dict:
         creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
@@ -51,32 +51,23 @@ def get_gspread_client():
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         return gspread.authorize(creds)
     except Exception as e:
-        # This will now tell us if it's a Permission error or a Key error
         st.error(f"Google Auth Error: {e}")
         st.stop()
-# --- 3. DATA LOADER ---
+
 @st.cache_data(ttl=600)
 def load_data():
-    """Fetches data from Google Sheets and cleans it."""
+    """Fetches data from your specific Google Sheet ID."""
     try:
         client = get_gspread_client()
-        # Open the sheet by Name (easier than ID)
-        sheet = client.open(SHEET_NAME).sheet1
+        # 🟢 YOUR SPECIFIC SHEET ID
+        SHEET_ID = "1tvbgS5n-_CzgELdgM_jWNe-qot14ynGXmX67D_f-b8U"
+        sheet = client.open_by_key(SHEET_ID).sheet1
+        
         data = sheet.get_all_records()
         df = pd.DataFrame(data)
         
-        # --- CLEANING ---
+        # Normalize column names to avoid errors
         df.columns = df.columns.str.strip().str.upper()
-        
-        # Fix Mobile Number Column
-        contact_col = next((col for col in df.columns if 'CONTACT' in col), None)
-        if contact_col:
-            df.rename(columns={contact_col: 'MOBILE_NUMBER'}, inplace=True)
-            
-        # Fix Age
-        if 'AGE' in df.columns:
-            df['AGE'] = pd.to_numeric(df['AGE'], errors='coerce')
-            
         return df
     except Exception as e:
         st.error(f"Error loading data: {e}")
