@@ -28,17 +28,18 @@ def check_password():
 
 # --- 2. GOOGLE AUTHENTICATION (WITH FIX) ---
 @st.cache_resource
+@st.cache_resource
 def get_gspread_client():
-    """Authenticates using the secrets file with PEM fix."""
+    """Authenticates using secrets and repairs PEM formatting."""
     if "gcp_service_account" not in st.secrets:
-        st.error("Secrets not found! Check .streamlit/secrets.toml")
+        st.error("Secrets missing from Streamlit Cloud Settings!")
         st.stop()
     
-    # Load secrets into a dictionary
+    # Convert secrets to a dictionary
     creds_dict = dict(st.secrets["gcp_service_account"])
 
-    # 🟢 CRITICAL FIX: Replace literal "\n" strings with actual newline characters
-    # This fixes the "InvalidPadding" / PEM file error
+    # 🟢 THE REPAIR LINE:
+    # Converts the literal "\n" strings into real line breaks.
     if "private_key" in creds_dict:
         creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
 
@@ -51,7 +52,7 @@ def get_gspread_client():
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         return gspread.authorize(creds)
     except Exception as e:
-        st.error(f"Authentication Failed: {e}")
+        st.error(f"Google Auth Error: {e}")
         st.stop()
 # --- 3. DATA LOADER ---
 @st.cache_data(ttl=600)
