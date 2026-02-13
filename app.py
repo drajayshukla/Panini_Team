@@ -1,25 +1,19 @@
-# app.py
 import streamlit as st
-# Make sure this line matches the file and function name exactly:
-from utils.sheets_sync import get_sheet_connection
-import streamlit as st
-import pandas as pd
-from utils.sheets_sync import get_sheet_connection
+# Now this import will work perfectly because we fixed __init__.py
+from utils import check_password, load_data 
 
-st.title("Panini-DM: Educator Dashboard")
+st.set_page_config(page_title="Panini-DM Dashboard", page_icon="🏥", layout="wide")
 
-# 1. Fetch Cleaned Data from Google Sheets
-conn = get_sheet_connection("YOUR_SHEET_ID")
-data = conn.get_all_records()
-df = pd.DataFrame(data)
+st.title("🏥 Panini-DM: Educator Dashboard")
 
-# 2. Filter for "Unverified" entries for cleaning
-pending = df[df['Verified'] == 'False']
+if not check_password():
+    st.stop()
 
-st.subheader("Pending Data Verification")
-st.table(pending[['Timestamp', 'Label', 'Value', 'SuggestedDose']])
+# Load data to ensure connection works
+df = load_data()
 
-# 3. Action: Verification Button
-if st.button("Verify & Send Next Dose"):
-    # Logic to update Google Sheet 'Verified' status to 'True'
-    st.success("Dose confirmed and sent to WhatsApp!")
+if not df.empty:
+    st.success(f"✅ System Online. {len(df)} Patient Records Loaded.")
+    st.markdown("### Select a tool from the sidebar to begin.")
+else:
+    st.warning("Connected to Google Sheets, but no data found.")
