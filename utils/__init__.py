@@ -4,24 +4,14 @@ import os
 
 DATA_PATH = "data/max.csv"
 
-@st.cache_data(ttl=600)
+@st.cache_data
 def load_data():
-    if not os.path.exists(DATA_PATH):
-        # This will show the error but not crash the app
-        return pd.DataFrame()
+    # Use absolute path relative to this file's location
+    base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    csv_path = os.path.join(base_path, "data", "max.csv")
     
-    try:
-        # We use low_memory=False because medical data often has mixed types
-        df = pd.read_csv(DATA_PATH, low_memory=False)
-        
-        # Clean column names (strip spaces, but keep case for matching your CSV)
-        df.columns = [col.strip() for col in df.columns]
-        
-        # Standardize Gender for filtering
-        if 'GENDER' in df.columns:
-            df['GENDER'] = df['GENDER'].astype(str).str.strip().str.upper()
-            
-        return df
-    except Exception as e:
-        st.error(f"Error reading CSV: {e}")
+    if os.path.exists(csv_path):
+        return pd.read_csv(csv_path)
+    else:
+        st.error(f"CSV not found at {csv_path}")
         return pd.DataFrame()
