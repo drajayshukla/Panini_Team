@@ -22,3 +22,4 @@ service_account.json      # Google Cloud Credentials
 .idx/      
                # Optional: Keep if sharing workspace config, ignore if private.streamlit/secrets.toml
 service_account.json
+.streamlit/secrets.toml

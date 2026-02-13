@@ -1,5 +1,8 @@
 # app.py
 import streamlit as st
+# Make sure this line matches the file and function name exactly:
+from utils.sheets_sync import get_sheet_connection
+import streamlit as st
 import pandas as pd
 from utils.sheets_sync import get_sheet_connection
 
