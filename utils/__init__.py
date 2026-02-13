@@ -26,29 +26,34 @@ def check_password():
             st.error("Incorrect Password")
     return False
 
-# --- 2. GOOGLE AUTHENTICATION ---
-@st.cache_resource
+
 # --- 2. GOOGLE AUTHENTICATION ---
 @st.cache_resource
 def get_gspread_client():
-    """Authenticates using the secrets file."""
+    """Authenticates using the secrets file with PEM fix."""
     if "gcp_service_account" not in st.secrets:
         st.error("Secrets not found! Check .streamlit/secrets.toml")
         st.stop()
     
-    # 1. Load the secrets into a dictionary
-    credentials_dict = dict(st.secrets["gcp_service_account"])
+    # Load secrets into a dictionary
+    creds_dict = dict(st.secrets["gcp_service_account"])
 
-    # 🟢 THE FIX: Force-replace literal \n with actual newlines
-    credentials_dict["private_key"] = credentials_dict["private_key"].replace("\\n", "\n")
+    # 🟢 CRITICAL FIX: Replace literal "\n" strings with actual newline characters
+    # This fixes the "InvalidPadding" / PEM file error
+    if "private_key" in creds_dict:
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
+        "https://www.googleapis.com/auth/drive"
+    ]
     
-    scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    
-    # 2. Authenticate using the fixed dictionary
-    creds = Credentials.from_service_account_info(
-        credentials_dict, scopes=scopes
-    )
-    return gspread.authorize(creds)
+    try:
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+        return gspread.authorize(creds)
+    except Exception as e:
+        st.error(f"Authentication Failed: {e}")
+        st.stop()
 # --- 3. DATA LOADER ---
 @st.cache_data(ttl=600)
 def load_data():
