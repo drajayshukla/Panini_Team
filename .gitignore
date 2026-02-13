@@ -1,1 +1,24 @@
-.venv
+# --- Custom Folders ---
+other/                    # Your experimental scripts (Not part of the main app)
+
+# --- Python Integrity ---
+__pycache__/
+*.pyc
+.venv/
+env/
+venv/
+
+# --- Secrets (CRITICAL: NEVER COMMIT THESE) ---
+service_account.json      # Google Cloud Credentials
+.env                      # Meta API Tokens & Phone Numbers
+.streamlit/secrets.toml   # Streamlit secrets
+
+# --- OS & IDE Files ---
+.DS_Store
+.vscode/
+.idea/
+
+# --- Project IDX Specific ---
+.idx/      
+               # Optional: Keep if sharing workspace config, ignore if private.streamlit/secrets.toml
+service_account.json

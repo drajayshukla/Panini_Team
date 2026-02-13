@@ -4,3 +4,35 @@ autopep8
 
 # App
 flask
+# --- Core Frameworks ---
+fastapi>=0.109.0
+uvicorn>=0.27.0
+streamlit>=1.31.0
+
+# --- Data & Logic ---
+pandas>=2.2.0
+numpy>=1.26.0
+
+# --- Google Sheets & Auth ---
+gspread>=6.0.0
+google-auth>=2.27.0
+
+# --- Utilities ---
+requests>=2.31.0          # For Meta Cloud API calls
+apscheduler>=3.10.0       # For Morning Loops & Hypo Timers
+python-dotenv>=1.0.1      # To load secrets safely
+fpdf>=1.7.2    
+streamlit
+pandas
+plotly
+gspread
+google-auth
+wordcloud
+matplotlib
+streamlit
+pandas
+plotly
+gspread
+google-auth
+matplotlib
+wordcloud           # For generating the Landscape PDF report
