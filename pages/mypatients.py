@@ -2,65 +2,72 @@ import streamlit as st
 import pandas as pd
 from utils import load_data, check_password
 
-st.set_page_config(page_title="Patient Search", layout="wide")
+st.set_page_config(page_title="Registry Search", layout="wide")
 
 if not check_password():
     st.stop()
 
-st.title("🔎 Clinical Registry Search")
+st.title("🔎 Patient Registry & Keyword Search")
+
 df = load_data()
 
 if df.empty:
+    st.warning("⚠️ data/max.csv is empty or missing. Please upload data.")
     st.stop()
 
-# --- SIDEBAR FILTERS ---
-st.sidebar.header("Filters")
-search_query = st.sidebar.text_input("Global Search (Name, ID, Diagnosis)", "")
+# --- SEARCH & FILTER SECTION ---
+st.sidebar.header("Filter & Search")
+global_search = st.sidebar.text_input("Search Name, ID, or Diagnosis", "")
 
-# Keyword Filter (Multi-select)
+# Logic for Keyword extraction from 'KEY WORD' column
 if 'KEY WORD' in df.columns:
-    # Extract unique keywords from the comma-separated strings
-    all_keywords = set()
-    df['KEY WORD'].dropna().str.split(',').apply(lambda x: [all_keywords.add(i.strip()) for i in x])
-    selected_keywords = st.sidebar.multiselect("Filter by Research Category", options=sorted(list(all_keywords)))
+    # Get unique keywords, handling comma-separated values
+    keywords = df['KEY WORD'].dropna().unique()
+    flat_keywords = sorted(list(set([k.strip() for sub in keywords for k in str(sub).split(',')])))
+    selected_tag = st.sidebar.multiselect("Research Tags (Key Words)", flat_keywords)
 
-# --- SEARCH LOGIC ---
+# --- FILTERING LOGIC ---
 filtered_df = df.copy()
 
-if search_query:
-    # Search across all columns
-    mask = df.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)
+if global_search:
+    # Search across File Upload, Max ID, and Diagnosis
+    mask = (
+        filtered_df['FILE UPLOAD'].astype(str).str.contains(global_search, case=False, na=False) |
+        filtered_df['MAX ID'].astype(str).str.contains(global_search, case=False, na=False) |
+        filtered_df['DIAGNOSIS'].astype(str).str.contains(global_search, case=False, na=False)
+    )
     filtered_df = filtered_df[mask]
 
-if 'KEY WORD' in df.columns and selected_keywords:
-    # Filter for rows that contain any of the selected keywords
-    pattern = '|'.join(selected_keywords)
-    filtered_df = filtered_df[filtered_df['KEY WORD'].str.contains(pattern, na=False, case=False)]
+if 'KEY WORD' in df.columns and selected_tag:
+    # Match any of the selected tags
+    tag_mask = filtered_df['KEY WORD'].astype(str).apply(lambda x: any(tag in x for tag in selected_tag))
+    filtered_df = filtered_df[tag_mask]
 
-# --- DISPLAY RESULTS ---
-st.metric("Patients Found", len(filtered_df))
+# --- DISPLAY ---
+st.metric("Records Found", len(filtered_df))
 
-# Data Table with specific column selection for readability
-cols_to_show = ['TIMESTAMP', 'MAX ID', 'GENDER', 'AGE', 'DIAGNOSIS', 'KEY WORD']
-st.dataframe(filtered_df[cols_to_show], use_container_width=True)
+# Table View
+display_cols = ['TIMESTAMP', 'FILE UPLOAD', 'AGE', 'GENDER', 'MAX ID', 'DIAGNOSIS', 'KEY WORD']
+st.dataframe(filtered_df[display_cols], use_container_width=True)
 
 st.divider()
 
-# --- DETAILED PATIENT VIEW ---
-st.subheader("📋 Detailed Patient Records")
-if not filtered_df.empty:
-    for index, row in filtered_df.iterrows():
-        with st.expander(f"Patient: {row.get('FILE UPLOAD', 'N/A')} | ID: {row.get('MAX ID', 'N/A')} | {row.get('DIAGNOSIS', 'No Diagnosis')}"):
-            c1, c2 = st.columns(2)
-            with c1:
-                st.info("**Clinical Notes**")
-                st.write(row.get('CLINICAL NOTES', 'N/A'))
-                st.info("**Case Notes**")
-                st.write(row.get('CASE NOTES', 'N/A'))
-            with c2:
-                st.warning("**Prescription Summary**")
-                st.write(row.get('PRESCRIPTION', 'N/A'))
-                st.success("**Research Tags**")
-                st.write(row.get('KEY WORD', 'N/A'))
-else:
-    st.info("Adjust filters to view patient details.")
+# --- DETAILED CARD VIEW ---
+st.subheader("📋 Clinical Detail View")
+for _, row in filtered_df.iterrows():
+    with st.expander(f"📌 {row['FILE UPLOAD']} | ID: {row['MAX ID']} | {row['DIAGNOSIS']}"):
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**Patient Demographics**")
+            st.write(f"Age/Sex: {row['AGE']} / {row['GENDER']}")
+            st.write(f"Contact: {row.get('XXXXXXXXCONTACT NUMBER', 'N/A')}")
+            st.info("**Patient Profile**")
+            st.text(row.get('PATIENT DETAILS', 'No details available'))
+            
+        with col2:
+            st.markdown("**Clinical Assessment**")
+            st.write(f"**Keywords:** {row['KEY WORD']}")
+            st.success("**Prescription**")
+            st.text(row.get('PRESCRIPTION', 'N/A'))
+            st.warning("**Case Notes**")
+            st.write(row.get('CASE NOTES', 'N/A'))
