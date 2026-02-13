@@ -1,8 +1,16 @@
 import streamlit as st
 import pandas as pd
+import sys
+import os
+
+# 🟢 Add the root directory to sys.path so 'utils' can be found
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from utils import load_data, check_password
 
-st.set_page_config(page_title="Registry Search", layout="wide")
+st.set_page_config(page_title="My Patients", layout="wide")
+
+
 
 if not check_password():
     st.stop()
