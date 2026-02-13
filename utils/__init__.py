@@ -29,18 +29,23 @@ def check_password():
 # --- 2. GOOGLE AUTHENTICATION (WITH FIX) ---
 @st.cache_resource
 def get_gspread_client():
-    """Authenticates using secrets and repairs PEM formatting."""
+    """Authenticates with strict PEM key repair."""
     if "gcp_service_account" not in st.secrets:
         st.error("Secrets missing from Streamlit Cloud Settings!")
         st.stop()
     
-    # 1. Convert secrets to a dictionary
+    # 1. Load the secrets
     creds_dict = dict(st.secrets["gcp_service_account"])
 
-    # 🟢 FIX FOR: InvalidData(InvalidPadding)
-    # This converts literal "\n" text into real line breaks for the PEM reader
+    # 🟢 THE DEFINITIVE REPAIR:
+    # This handles cases where the key is one line, multiple lines, 
+    # or contains literal \n characters.
     if "private_key" in creds_dict:
-        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+        pk = creds_dict["private_key"]
+        # Replace literal '\n' string with actual newline characters
+        pk = pk.replace("\\n", "\n")
+        # Ensure there are no double-newlines created by the repair
+        creds_dict["private_key"] = pk.replace("\n\n", "\n")
 
     scopes = [
         "https://www.googleapis.com/auth/spreadsheets",
@@ -51,6 +56,7 @@ def get_gspread_client():
         creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         return gspread.authorize(creds)
     except Exception as e:
+        # If this still triggers, we will see the exact reason
         st.error(f"Google Auth Error: {e}")
         st.stop()
 
