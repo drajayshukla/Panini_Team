@@ -3,7 +3,7 @@ import pandas as pd
 import sys
 import os
 
-# Add the parent directory (paniniteam) to sys.path
+# --- PATH CONFIGURATION ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 if root_dir not in sys.path:
@@ -12,37 +12,43 @@ if root_dir not in sys.path:
 from utils import load_data, check_password
 
 st.set_page_config(page_title="My Patients", layout="wide")
-# ... rest of your code
-
-
 
 if not check_password():
     st.stop()
 
-st.title("🔎 Patient Registry & Keyword Search")
+st.title("🏥 Clinical Registry & Keyword Search")
 
+# --- LOAD AND SANITIZE DATA ---
 df = load_data()
 
 if df.empty:
-    st.warning("⚠️ data/max.csv is empty or missing. Please upload data.")
+    st.warning("⚠️ No data found in data/max.csv. Please check the file path.")
     st.stop()
 
-# --- SEARCH & FILTER SECTION ---
-st.sidebar.header("Filter & Search")
+# 🟢 DATA SANITIZER: Remove trailing spaces from CSV headers
+# Your CSV has "AGE ", "DIAGNOSIS ", etc. This fix is mandatory.
+df.columns = [col.strip() for col in df.columns]
+
+# --- SIDEBAR FILTERS ---
+st.sidebar.header("🔍 Search Filters")
 global_search = st.sidebar.text_input("Search Name, ID, or Diagnosis", "")
 
-# Logic for Keyword extraction from 'KEY WORD' column
+# Handle "KEY WORD" column (which contains commas like "DM, THYROID")
 if 'KEY WORD' in df.columns:
-    # Get unique keywords, handling comma-separated values
-    keywords = df['KEY WORD'].dropna().unique()
-    flat_keywords = sorted(list(set([k.strip() for sub in keywords for k in str(sub).split(',')])))
-    selected_tag = st.sidebar.multiselect("Research Tags (Key Words)", flat_keywords)
+    # Extract unique, clean tags
+    raw_keywords = df['KEY WORD'].dropna().unique()
+    all_tags = set()
+    for item in raw_keywords:
+        for tag in str(item).split(','):
+            all_tags.add(tag.strip())
+    
+    selected_tags = st.sidebar.multiselect("Filter by Research Category", sorted(list(all_tags)))
 
-# --- FILTERING LOGIC ---
+# --- FILTERING ENGINE ---
 filtered_df = df.copy()
 
+# Filter by Global Search
 if global_search:
-    # Search across File Upload, Max ID, and Diagnosis
     mask = (
         filtered_df['FILE UPLOAD'].astype(str).str.contains(global_search, case=False, na=False) |
         filtered_df['MAX ID'].astype(str).str.contains(global_search, case=False, na=False) |
@@ -50,36 +56,57 @@ if global_search:
     )
     filtered_df = filtered_df[mask]
 
-if 'KEY WORD' in df.columns and selected_tag:
-    # Match any of the selected tags
-    tag_mask = filtered_df['KEY WORD'].astype(str).apply(lambda x: any(tag in x for tag in selected_tag))
-    filtered_df = filtered_df[tag_mask]
+# Filter by Research Tags
+if 'KEY WORD' in df.columns and selected_tags:
+    tag_pattern = '|'.join(selected_tags)
+    filtered_df = filtered_df[filtered_df['KEY WORD'].str.contains(tag_pattern, case=False, na=False)]
 
-# --- DISPLAY ---
-st.metric("Records Found", len(filtered_df))
+# --- DASHBOARD UI ---
+st.metric("Total Records Found", len(filtered_df))
 
-# Table View
-display_cols = ['TIMESTAMP', 'FILE UPLOAD', 'AGE', 'GENDER', 'MAX ID', 'DIAGNOSIS', 'KEY WORD']
-st.dataframe(filtered_df[display_cols], use_container_width=True)
+# Main Data Table
+# We use only specific columns for the overview table
+overview_cols = ['TIMESTAMP', 'FILE UPLOAD', 'AGE', 'GENDER', 'MAX ID', 'DIAGNOSIS', 'KEY WORD']
+st.dataframe(filtered_df[overview_cols], use_container_width=True)
 
 st.divider()
 
-# --- DETAILED CARD VIEW ---
-st.subheader("📋 Clinical Detail View")
-for _, row in filtered_df.iterrows():
-    with st.expander(f"📌 {row['FILE UPLOAD']} | ID: {row['MAX ID']} | {row['DIAGNOSIS']}"):
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**Patient Demographics**")
-            st.write(f"Age/Sex: {row['AGE']} / {row['GENDER']}")
-            st.write(f"Contact: {row.get('XXXXXXXXCONTACT NUMBER', 'N/A')}")
-            st.info("**Patient Profile**")
-            st.text(row.get('PATIENT DETAILS', 'No details available'))
+# --- DETAILED CLINICAL VIEW ---
+st.subheader("📋 Comprehensive Patient Details")
+
+if filtered_df.empty:
+    st.info("No patients found matching the search criteria.")
+else:
+    for _, row in filtered_df.iterrows():
+        # Clean up empty values for the title
+        p_name = row.get('FILE UPLOAD', 'N/A')
+        p_id = row.get('MAX ID', 'N/A')
+        p_diag = row.get('DIAGNOSIS', 'No Diagnosis Listed')
+        
+        # Expander for each patient
+        with st.expander(f"👤 {p_name} | ID: {p_id} | {p_diag}"):
+            c1, c2, c3 = st.columns([1, 1, 1])
             
-        with col2:
-            st.markdown("**Clinical Assessment**")
-            st.write(f"**Keywords:** {row['KEY WORD']}")
-            st.success("**Prescription**")
-            st.text(row.get('PRESCRIPTION', 'N/A'))
-            st.warning("**Case Notes**")
-            st.write(row.get('CASE NOTES', 'N/A'))
+            with c1:
+                st.markdown("**Demographics**")
+                st.write(f"**Age:** {row.get('AGE', 'N/A')}")
+                st.write(f"**Gender:** {row.get('GENDER', 'N/A')}")
+                st.write(f"**Mobile:** {row.get('XXXXXXXXCONTACT NUMBER', 'N/A')}")
+                st.markdown("**Research Info**")
+                st.info(f"Tags: {row.get('KEY WORD', 'None')}")
+
+            with c2:
+                st.markdown("**Patient Profile & Vitals**")
+                # This handles the multi-line "PATIENT DETAILS" column
+                details = row.get('PATIENT DETAILS', 'No entry')
+                if str(details).strip() == "X" or str(details).strip() == "":
+                    st.write("Detailed profile not available.")
+                else:
+                    st.text(details)
+
+            with c3:
+                st.markdown("**Clinical Notes & RX**")
+                st.success("**Prescription Summary**")
+                st.write(row.get('PRESCRIPTION', 'N/A'))
+                st.warning("**Clinical Notes**")
+                st.write(row.get('CLINICAL NOTES', 'N/A'))
