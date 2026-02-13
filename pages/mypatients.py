@@ -1,108 +1,66 @@
 import streamlit as st
-import plotly.express as px
 import pandas as pd
 from utils import load_data, check_password
 
-# --- PAGE SETUP ---
-st.set_page_config(page_title="Clinic Overview", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Patient Search", layout="wide")
 
-# --- AUTH CHECK ---
 if not check_password():
     st.stop()
 
-st.title("📊 Clinic Executive Dashboard")
-st.markdown("Real-time demographic and operational insights.")
-
-# --- LOAD DATA ---
-with st.spinner("Syncing with Live Google Sheet..."):
-    df = load_data()
+st.title("🔎 Clinical Registry Search")
+df = load_data()
 
 if df.empty:
-    st.warning("⚠️ Connected to Google Sheet, but no data found.")
     st.stop()
 
-# --- LOGICAL PRE-PROCESSING ---
-# 1. Normalize Column Names (Upper case & Strip spaces)
-df.columns = df.columns.str.strip().str.upper()
-
-# 2. Smart Timestamp Detection
-# Look for any column containing 'TIME' or 'DATE' to identify the timestamp
-time_col = next((col for col in df.columns if 'TIME' in col or 'DATE' in col), None)
-
-if time_col:
-    df['DATE_OBJ'] = pd.to_datetime(df[time_col], errors='coerce')
-    df['MONTH_YEAR'] = df['DATE_OBJ'].dt.to_period('M').astype(str)
-    has_time_data = True
-else:
-    has_time_data = False
-
-# 3. Gender Standardization
-if 'GENDER' in df.columns:
-    # Standardize: "Male", "male ", "MALE" -> "Male"
-    df['GENDER'] = df['GENDER'].astype(str).str.strip().str.title()
-    # Handle missing/weird values
-    df['GENDER'] = df['GENDER'].replace({'Nan': 'Unknown', 'None': 'Unknown', '': 'Unknown'})
-
 # --- SIDEBAR FILTERS ---
-st.sidebar.header("🔍 Dashboard Filters")
+st.sidebar.header("Filters")
+search_query = st.sidebar.text_input("Global Search (Name, ID, Diagnosis)", "")
 
-if 'GENDER' in df.columns:
-    gender_opts = sorted(list(df['GENDER'].unique()))
-    selected_gender = st.sidebar.multiselect("Filter Gender", gender_opts, default=gender_opts)
-    
-    if selected_gender:
-        df = df[df['GENDER'].isin(selected_gender)]
+# Keyword Filter (Multi-select)
+if 'KEY WORD' in df.columns:
+    # Extract unique keywords from the comma-separated strings
+    all_keywords = set()
+    df['KEY WORD'].dropna().str.split(',').apply(lambda x: [all_keywords.add(i.strip()) for i in x])
+    selected_keywords = st.sidebar.multiselect("Filter by Research Category", options=sorted(list(all_keywords)))
 
-# --- SECTION 1: METRICS ---
-st.subheader("🏥 Operational KPIs")
-k1, k2, k3, k4 = st.columns(4)
+# --- SEARCH LOGIC ---
+filtered_df = df.copy()
 
-k1.metric("Total Patients", f"{len(df):,}")
+if search_query:
+    # Search across all columns
+    mask = df.astype(str).apply(lambda x: x.str.contains(search_query, case=False)).any(axis=1)
+    filtered_df = filtered_df[mask]
 
-if 'GENDER' in df.columns:
-    m_count = len(df[df['GENDER'] == 'Male'])
-    f_count = len(df[df['GENDER'] == 'Female'])
-    k2.metric("Gender Split", f"{m_count}M : {f_count}F")
+if 'KEY WORD' in df.columns and selected_keywords:
+    # Filter for rows that contain any of the selected keywords
+    pattern = '|'.join(selected_keywords)
+    filtered_df = filtered_df[filtered_df['KEY WORD'].str.contains(pattern, na=False, case=False)]
 
-if 'AGE' in df.columns:
-    avg_age = pd.to_numeric(df['AGE'], errors='coerce').mean()
-    k3.metric("Avg Age", f"{avg_age:.1f} Yrs")
+# --- DISPLAY RESULTS ---
+st.metric("Patients Found", len(filtered_df))
 
-if 'DIAGNOSIS' in df.columns:
-    top_diag = df['DIAGNOSIS'].mode()[0] if not df['DIAGNOSIS'].empty else "N/A"
-    k4.metric("Top Condition", str(top_diag)[:15])
+# Data Table with specific column selection for readability
+cols_to_show = ['TIMESTAMP', 'MAX ID', 'GENDER', 'AGE', 'DIAGNOSIS', 'KEY WORD']
+st.dataframe(filtered_df[cols_to_show], use_container_width=True)
 
 st.divider()
 
-# --- SECTION 2: TRENDS (If Time Data Exists) ---
-if has_time_data:
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        st.subheader("📈 Recruitment Trend")
-        growth = df.groupby('MONTH_YEAR').size().reset_index(name='Patients')
-        fig = px.area(growth, x='MONTH_YEAR', y='Patients', title="Monthly Patient Volume")
-        fig.update_traces(line_color='#0083B8')
-        st.plotly_chart(fig, use_container_width=True)
-    
-    with c2:
-        st.subheader("⚧ Demographics")
-        if 'GENDER' in df.columns:
-            fig2 = px.pie(df, names='GENDER', hole=0.5, color_discrete_sequence=px.colors.qualitative.Pastel)
-            st.plotly_chart(fig2, use_container_width=True)
-
-# --- SECTION 3: CLINICAL INSIGHTS ---
-st.subheader("🧬 Clinical Profile")
-r1, r2 = st.columns(2)
-
-with r1:
-    if 'AGE' in df.columns:
-        st.write("**Age Distribution**")
-        fig3 = px.histogram(df, x='AGE', color='GENDER' if 'GENDER' in df.columns else None, nbins=20)
-        st.plotly_chart(fig3, use_container_width=True)
-
-with r2:
-    if 'DIAGNOSIS' in df.columns:
-        st.write("**Top 10 Diagnoses**")
-        diag_counts = df['DIAGNOSIS'].value_counts().head(10).sort_values(ascending=True)
-        fig4 = px.bar(x=diag_counts.values, y=diag_counts.index, orientation='h')
-        st.plotly_chart(fig4, use_container_width=True)
+# --- DETAILED PATIENT VIEW ---
+st.subheader("📋 Detailed Patient Records")
+if not filtered_df.empty:
+    for index, row in filtered_df.iterrows():
+        with st.expander(f"Patient: {row.get('FILE UPLOAD', 'N/A')} | ID: {row.get('MAX ID', 'N/A')} | {row.get('DIAGNOSIS', 'No Diagnosis')}"):
+            c1, c2 = st.columns(2)
+            with c1:
+                st.info("**Clinical Notes**")
+                st.write(row.get('CLINICAL NOTES', 'N/A'))
+                st.info("**Case Notes**")
+                st.write(row.get('CASE NOTES', 'N/A'))
+            with c2:
+                st.warning("**Prescription Summary**")
+                st.write(row.get('PRESCRIPTION', 'N/A'))
+                st.success("**Research Tags**")
+                st.write(row.get('KEY WORD', 'N/A'))
+else:
+    st.info("Adjust filters to view patient details.")
