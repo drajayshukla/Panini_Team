@@ -3,8 +3,7 @@ import pandas as pd
 import sys
 import os
 
-# 🟢 Add the project root to the Python path
-# This allows 'pages/mypatients.py' to find 'utils/' at the root
+# Add the parent directory (paniniteam) to sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 if root_dir not in sys.path:
@@ -13,6 +12,7 @@ if root_dir not in sys.path:
 from utils import load_data, check_password
 
 st.set_page_config(page_title="My Patients", layout="wide")
+# ... rest of your code
 
 
 
